@@ -1,0 +1,52 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TaskStatus {
+  to_do
+  pending
+  in_progress
+  done
+}
+
+model Task {
+  id          String     @id @default(uuid()) @db.Uuid
+  title       String
+  description String?
+  status      TaskStatus @default(to_do)
+  createdBy   String
+  createdAt   DateTime   @default(now()) @db.Timestamptz
+  updatedAt   DateTime   @updatedAt @db.Timestamptz
+
+  // Nullable FK — audit logs are NOT cascade-deleted
+  auditLogs   AuditLog[] @relation("TaskAuditLogs")
+
+  @@map("tasks")
+}
+
+model AuditLog {
+  id        String     @id @default(uuid()) @db.Uuid
+  // Immutable snapshot of the original task id — never updated
+  taskId    String     @db.Uuid
+  // Nullable FK reference — set to NULL when task is deleted; taskId above is preserved
+  taskRef   Task?      @relation("TaskAuditLogs", fields: [taskRefId], references: [id], onDelete: SetNull)
+  taskRefId String?    @db.Uuid
+  taskTitle String
+  actor     String
+  fromStatus TaskStatus
+  toStatus   TaskStatus
+  timestamp  DateTime   @default(now()) @db.Timestamptz
+
+  @@index([taskId])
+  @@index([timestamp])
+  @@map("audit_logs")
+}
+
